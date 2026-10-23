@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Game Show Buzzer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        arcade: {
+                            bg: '#0F172A',
+                            card: '#1E293B',
+                            accent: '#6366F1',
+                            gold: '#F59E0B',
+                            red: '#EF4444',
+                            green: '#10B981',
+                        }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'bounce-short': 'bounce 0.5s ease-in-out 2',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0F172A;
+            color: #F8FAFC;
+            font-family: 'Outfit', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Neon Glow Effects */
+        .glow-red {
+            box-shadow: 0 0 25px rgba(239, 68, 68, 0.6), inset 0 0 15px rgba(255, 255, 255, 0.3);
+        }
+        .glow-green {
+            box-shadow: 0 0 25px rgba(16, 185, 129, 0.6), inset 0 0 15px rgba(255, 255, 255, 0.3);
+        }
+        .glow-gold {
+            box-shadow: 0 0 25px rgba(245, 158, 11, 0.6);
+        }
+        
+        /* 3D Button Effects */
+        .buzz-btn {
+            transform: translateY(0);
+            transition: all 0.05s ease-out;
+            box-shadow: 0 12px 0 #991B1B, 0 15px 25px rgba(0, 0, 0, 0.5);
+        }
+        .buzz-btn:active:not(:disabled) {
+            transform: translateY(8px);
+            box-shadow: 0 4px 0 #991B1B, 0 5px 10px rgba(0, 0, 0, 0.5);
+        }
+        .buzz-btn:disabled {
+            box-shadow: 0 6px 0 #374151;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1E293B;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col justify-between">
+
+    <!-- TOP BAR / HEADER -->
+    <header class="bg-slate-900/80 backdrop-blur border-b border-slate-800 px-4 py-3 flex items-center justify-between shrink-0 z-20">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-black text-xl text-white shadow-lg shadow-indigo-500/30">
+                <i class="fa-solid font-bold fa-bolt"></i>
+            </div>
+            <span class="font-extrabold text-xl tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-500">BUZZR</span>
+        </div>
+
+        <div id="room-badge" class="hidden flex items-center bg-slate-800 border border-slate-700 px-3 py-1 rounded-full gap-2">
+            <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">ROOM</span>
+            <span id="badge-code" class="font-black text-amber-400 tracking-widest text-sm">----</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button id="sound-toggle" onclick="toggleSound()" class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700 transition">
+                <i id="sound-icon" class="fa-solid fa-volume-high"></i>
+            </button>
+            <button id="leave-btn" onclick="leaveRoom()" class="hidden px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition">
+                Leave
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN APP CONTAINER -->
+    <main id="app-viewport" class="flex-1 relative overflow-y-auto p-4 flex flex-col justify-center max-w-2xl mx-auto w-full">
+
+        <!-- LOBBY SCREEN -->
+        <section id="screen-lobby" class="flex flex-col gap-6 w-full py-4">
+            <div class="text-center space-y-2">
+                <h1 class="text-4xl font-black tracking-tight text-white">READY TO PLAY?</h1>
+                <p class="text-slate-400 text-sm">Create a room as Host or join your friend's game!</p>
+            </div>
+
+            <!-- TAB SWITCHER -->
+            <div class="bg-slate-800/80 p-1 rounded-xl flex gap-1 border border-slate-700">
+                <button id="tab-join-btn" onclick="switchLobbyTab('join')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition bg-indigo-600 text-white shadow-md">Join Game</button>
+                <button id="tab-host-btn" onclick="switchLobbyTab('host')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition text-slate-400 hover:text-white">Host Game</button>
+            </div>
+
+            <!-- JOIN ROOM FORM -->
+            <div id="form-join" class="space-y-4 bg-slate-800/50 p-6 rounded-2xl border border-slate-700/80 backdrop-blur">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-400 mb-2 tracking-wider">Your Name</label>
+                    <input type="text" id="player-name-input" maxlength="12" placeholder="e.g. Alex" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-bold placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-400 mb-2 tracking-wider">Room Code</label>
+                    <input type="text" id="room-code-input" maxlength="6" placeholder="6-LETTER CODE" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-black tracking-widest uppercase placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition text-center text-lg">
+                </div>
+                <button onclick="joinRoom()" class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 py-3.5 rounded-xl font-black tracking-wider text-white shadow-lg shadow-indigo-500/25 active:scale-95 transition">
+                    JOIN GAME
+                </button>
+            </div>
+
+            <!-- HOST ROOM FORM -->
+            <div id="form-host" class="hidden space-y-4 bg-slate-800/50 p-6 rounded-2xl border border-slate-700/80 backdrop-blur text-center">
+                <div class="py-4">
+                    <i class="fa-solid fa-tv text-5xl text-indigo-400 mb-3 animate-pulse"></i>
+                    <h3 class="text-xl font-bold text-white">Create a New Game</h3>
+                    <p class="text-xs text-slate-400 mt-1">Control buzzers, award points, and manage players on this screen.</p>
+                </div>
+                <button onclick="createRoom()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 py-3.5 rounded-xl font-black tracking-wider text-white shadow-lg shadow-emerald-500/25 active:scale-95 transition">
+                    CREATE HOST ROOM
+                </button>
+            </div>
+        </section>
+
+        <!-- PLAYER SCREEN -->
+        <section id="screen-player" class="hidden flex-1 flex flex-col items-center justify-between py-2 w-full max-w-md mx-auto">
+            <!-- STATUS DISPLAY BANNER -->
+            <div id="player-status-card" class="w-full bg-slate-800/90 border border-slate-700 rounded-2xl p-4 text-center transition-all duration-300">
+                <div id="status-icon-container" class="text-2xl mb-1 text-indigo-400">
+                    <i class="fa-solid fa-play"></i>
+                </div>
+                <h2 id="status-title" class="text-xl font-black tracking-wide uppercase text-white">READY TO BUZZ</h2>
+                <p id="status-desc" class="text-xs text-slate-400 mt-0.5">Press the button as fast as you can when ready!</p>
+            </div>
+
+            <!-- HUGE TOUCH BUZZ BUTTON CONTAINER -->
+            <div class="w-full flex-1 flex items-center justify-center my-6">
+                <button id="main-buzz-btn" onclick="handleBuzzPress()" disabled class="buzz-btn w-64 h-64 sm:w-72 sm:h-72 rounded-full bg-gradient-to-b from-red-500 to-red-700 border-4 border-red-400 flex flex-col items-center justify-center text-white font-black text-4xl tracking-wider active:outline-none transition-all duration-100 disabled:from-slate-700 disabled:to-slate-800 disabled:border-slate-600 disabled:text-slate-500">
+                    <i class="fa-solid fa-hand-pointer text-5xl mb-2 pointer-events-none"></i>
+                    <span class="pointer-events-none">BUZZ!</span>
+                </button>
+            </div>
+
+            <!-- PLAYER FOOTER SCORE -->
+            <div class="w-full bg-slate-900/60 border border-slate-800 rounded-xl p-3 flex items-center justify-between px-6">
+                <span class="text-xs text-slate-400 font-bold uppercase">Your Score</span>
+                <span id="player-my-score" class="text-2xl font-black text-amber-400">0 pts</span>
+            </div>
+        </section>
+
+        <!-- HOST SCREEN -->
+        <section id="screen-host" class="hidden flex-1 flex flex-col gap-4 w-full h-full py-2">
+            <!-- ROOM CODE DISPLAY HEADER -->
+            <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+                <div>
+                    <span class="text-xs font-bold text-indigo-400 uppercase tracking-widest block">Room Code</span>
+                    <h2 id="host-room-code" class="text-4xl font-black text-amber-400 tracking-widest">------</h2>
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <button onclick="resetBuzzerState()" class="flex-1 sm:flex-initial bg-indigo-600 hover:bg-indigo-500 px-5 py-2.5 rounded-xl font-extrabold text-sm text-white shadow-lg shadow-indigo-600/30 active:scale-95 transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i> Reset Buzzer
+                    </button>
+                    <button onclick="clearAllPlayers()" class="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-red-400 text-xs font-semibold transition" title="Clear Players">
+                        <i class="fa-solid fa-user-slash"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- WINNER LOCKOUT BANNER -->
+            <div id="host-winner-banner" class="hidden bg-emerald-500/10 border-2 border-emerald-500 rounded-2xl p-5 text-center relative overflow-hidden animate-bounce-short">
+                <div class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-1">BUZZED IN FIRST!</div>
+                <h3 id="winner-name" class="text-3xl font-black text-white">---</h3>
+                <div id="winner-time" class="text-xs font-mono text-emerald-300 mt-1">Locked in at 0ms</div>
+
+                <!-- SCORE ADJUSTMENT CONTROLS -->
+                <div class="flex justify-center gap-2 mt-4">
+                    <button onclick="adjustScore(10)" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-1.5 rounded-lg text-xs font-bold text-white shadow">
+                        +10 Pts
+                    </button>
+                    <button onclick="adjustScore(5)" class="bg-emerald-600/80 hover:bg-emerald-500 px-3 py-1.5 rounded-lg text-xs font-bold text-white">
+                        +5 Pts
+                    </button>
+                    <button onclick="adjustScore(-5)" class="bg-red-600/80 hover:bg-red-500 px-3 py-1.5 rounded-lg text-xs font-bold text-white">
+                        -5 Pts
+                    </button>
+                </div>
+            </div>
+
+            <!-- BUZZ LOG & LEADERBOARD GRID -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+                <!-- BUZZ QUEUE LOG -->
+                <div class="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-4 flex flex-col">
+                    <h4 class="text-xs font-extrabold uppercase text-slate-400 tracking-wider mb-3 flex items-center justify-between">
+                        <span><i class="fa-solid fa-list-ol text-indigo-400 mr-1.5"></i> Buzz Queue</span>
+                        <span id="queue-count" class="text-[10px] bg-slate-700 px-2 py-0.5 rounded-full text-slate-300">0</span>
+                    </h4>
+                    <div id="buzz-queue-list" class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[140px]">
+                        <div class="text-center text-slate-500 text-xs py-8">Waiting for buzzes...</div>
+                    </div>
+                </div>
+
+                <!-- PLAYERS & LEADERBOARD -->
+                <div class="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-4 flex flex-col">
+                    <h4 class="text-xs font-extrabold uppercase text-slate-400 tracking-wider mb-3 flex items-center justify-between">
+                        <span><i class="fa-solid fa-trophy text-amber-400 mr-1.5"></i> Scoreboard</span>
+                        <span id="player-count" class="text-[10px] bg-slate-700 px-2 py-0.5 rounded-full text-slate-300">0 players</span>
+                    </h4>
+                    <div id="leaderboard-list" class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[140px]">
+                        <div class="text-center text-slate-500 text-xs py-8">No players connected</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- CUSTOM NOTIFICATION MODAL -->
+    <div id="modal-container" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl">
+            <div id="modal-icon" class="text-4xl text-indigo-400"><i class="fa-solid fa-circle-info"></i></div>
+            <h3 id="modal-title" class="text-lg font-extrabold text-white">Notice</h3>
+            <p id="modal-msg" class="text-xs text-slate-300 leading-relaxed">Message text goes here.</p>
+            <button onclick="closeModal()" class="w-full bg-slate-700 hover:bg-slate-600 py-2.5 rounded-xl font-bold text-sm text-white transition">OK</button>
+        </div>
+    </div>
+
+    <!-- FIREBASE MODULE SCRIPTS -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, runTransaction, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase state initialization
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'game-buzzer-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "demo-api-key",
+            authDomain: "demo-app.firebaseapp.com",
+            projectId: "demo-app",
+            storageBucket: "demo-app.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:123456"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // App Logic State
+        let currentUser = null;
+        let currentRole = null; // 'host' or 'player'
+        let currentRoomCode = null;
+        let playerName = "";
+        let soundEnabled = true;
+        let roomUnsubscribe = null;
+        let audioCtx = null;
+
+        // Sound Effects generator using Web Audio API
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'buzz') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.exponentialRampToValueAtTime(110, now + 0.3);
+                    gain.gain.setValueAtTime(0.5, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'win') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now); // C5
+                    osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+                    osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                    osc.start(now);
+                    osc.stop(now + 0.5);
+                } else if (type === 'lock') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(150, now);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                }
+            } catch (e) {
+                console.log("Audio play error:", e);
+            }
+        }
+
+        // Initialize Authentication
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.error("Auth initialization failed:", err);
+            }
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+            }
+        });
+
+        initAuth();
+
+        // UI Helpers
+        window.showModal = function(title, msg, icon = "fa-circle-info") {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-msg').innerText = msg;
+            document.getElementById('modal-icon').innerHTML = `<i class="fa-solid ${icon}"></i>`;
+            document.getElementById('modal-container').classList.remove('hidden');
+        };
+
+        window.closeModal = function() {
+            document.getElementById('modal-container').classList.add('hidden');
+        };
+
+        window.toggleSound = function() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('sound-icon');
+            if (soundEnabled) {
+                icon.className = "fa-solid fa-volume-high text-indigo-400";
+            } else {
+                icon.className = "fa-solid fa-volume-xmark text-slate-500";
+            }
+        };
+
+        window.switchLobbyTab = function(tab) {
+            const joinBtn = document.getElementById('tab-join-btn');
+            const hostBtn = document.getElementById('tab-host-btn');
+            const joinForm = document.getElementById('form-join');
+            const hostForm = document.getElementById('form-host');
+
+            if (tab === 'join') {
+                joinBtn.className = "flex-1 py-2.5 rounded-lg text-sm font-bold transition bg-indigo-600 text-white shadow-md";
+                hostBtn.className = "flex-1 py-2.5 rounded-lg text-sm font-bold transition text-slate-400 hover:text-white";
+                joinForm.classList.remove('hidden');
+                hostForm.classList.add('hidden');
+            } else {
+                hostBtn.className = "flex-1 py-2.5 rounded-lg text-sm font-bold transition bg-indigo-600 text-white shadow-md";
+                joinBtn.className = "flex-1 py-2.5 rounded-lg text-sm font-bold transition text-slate-400 hover:text-white";
+                hostForm.classList.remove('hidden');
+                joinForm.classList.add('hidden');
+            }
+        };
+
+        // Room Path Helpers (Strictly adhering to mandatory rules)
+        function getRoomRef(code) {
+            return doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+        }
+
+        // CREATE ROOM (HOST)
+        window.createRoom = async function() {
+            if (!currentUser) await initAuth();
+
+            // Generate 6-letter random room code
+            const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+            currentRoomCode = code;
+            currentRole = 'host';
+
+            const roomData = {
+                code: code,
+                hostId: currentUser.uid,
+                status: 'ready', // 'ready' or 'buzzed'
+                firstBuzz: null, // { uid, name, time }
+                buzzQueue: [],   // list of all buzzes in order
+                players: {},     // map of uid -> { name, score }
+                createdAt: Date.now()
+            };
+
+            try {
+                await setDoc(getRoomRef(code), roomData);
+                enterRoomView('host', code);
+                listenToRoom(code);
+            } catch (e) {
+                showModal("Error", "Could not create room. Please try again.");
+                console.error(e);
+            }
+        };
+
+        // JOIN ROOM (PLAYER)
+        window.joinRoom = async function() {
+            if (!currentUser) await initAuth();
+
+            const nameInput = document.getElementById('player-name-input').value.trim();
+            const codeInput = document.getElementById('room-code-input').value.trim().toUpperCase();
+
+            if (!nameInput) {
+                showModal("Name Required", "Please enter your name to join.");
+                return;
+            }
+            if (!codeInput || codeInput.length < 4) {
+                showModal("Code Required", "Please enter a valid room code.");
+                return;
+            }
+
+            playerName = nameInput;
+            currentRoomCode = codeInput;
+            currentRole = 'player';
+
+            try {
+                const roomDoc = await getDoc(getRoomRef(codeInput));
+                if (!roomDoc.exists()) {
+                    showModal("Room Not Found", "Check your code and try again.");
+                    return;
+                }
+
+                // Add player to room players map using transaction
+                await runTransaction(db, async (transaction) => {
+                    const snap = await transaction.get(getRoomRef(codeInput));
+                    if (!snap.exists()) throw "Room disappeared";
+
+                    const data = snap.data();
+                    const players = data.players || {};
+                    players[currentUser.uid] = {
+                        name: playerName,
+                        score: players[currentUser.uid]?.score || 0
+                    };
+                    transaction.update(getRoomRef(codeInput), { players });
+                });
+
+                enterRoomView('player', codeInput);
+                listenToRoom(codeInput);
+            } catch (e) {
+                showModal("Error", "Could not join room. " + e);
+            }
+        };
+
+        // LEAVE ROOM
+        window.leaveRoom = function() {
+            if (roomUnsubscribe) roomUnsubscribe();
+            currentRoomCode = null;
+            currentRole = null;
+
+            document.getElementById('screen-lobby').classList.remove('hidden');
+            document.getElementById('screen-player').classList.add('hidden');
+            document.getElementById('screen-host').classList.add('hidden');
+            document.getElementById('room-badge').classList.add('hidden');
+            document.getElementById('leave-btn').classList.add('hidden');
+        };
+
+        function enterRoomView(role, code) {
+            document.getElementById('screen-lobby').classList.add('hidden');
+            document.getElementById('room-badge').classList.remove('hidden');
+            document.getElementById('leave-btn').classList.remove('hidden');
+            document.getElementById('badge-code').innerText = code;
+
+            if (role === 'host') {
+                document.getElementById('screen-host').classList.remove('hidden');
+                document.getElementById('host-room-code').innerText = code;
+            } else {
+                document.getElementById('screen-player').classList.remove('hidden');
+            }
+        }
+
+        // REAL-TIME SYNC LISTENERS
+        function listenToRoom(code) {
+            if (roomUnsubscribe) roomUnsubscribe();
+
+            roomUnsubscribe = onSnapshot(getRoomRef(code), (docSnap) => {
+                if (!docSnap.exists()) {
+                    showModal("Room Closed", "The room has been deleted by the host.");
+                    leaveRoom();
+                    return;
+                }
+
+                const data = docSnap.data();
+
+                if (currentRole === 'host') {
+                    renderHostView(data);
+                } else if (currentRole === 'player') {
+                    renderPlayerView(data);
+                }
+            }, (err) => {
+                console.error("Snapshot error:", err);
+            });
+        }
+
+        // RENDER PLAYER VIEW STATE
+        let previousStatus = null;
+        function renderPlayerView(data) {
+            const buzzBtn = document.getElementById('main-buzz-btn');
+            const card = document.getElementById('player-status-card');
+            const title = document.getElementById('status-title');
+            const desc = document.getElementById('status-desc');
+            const icon = document.getElementById('status-icon-container');
+            const myScore = document.getElementById('player-my-score');
+
+            // Render score
+            const score = (data.players && data.players[currentUser.uid]) ? data.players[currentUser.uid].score : 0;
+            myScore.innerText = `${score} pts`;
+
+            // Locked/Unlocked state logic
+            if (!data.firstBuzz) {
+                // Room is OPEN & READY FOR BUZZ
+                buzzBtn.disabled = false;
+                buzzBtn.classList.remove('opacity-50');
+                
+                card.className = "w-full bg-slate-800/90 border border-emerald-500/50 rounded-2xl p-4 text-center transition-all duration-300 shadow-lg shadow-emerald-500/10";
+                icon.innerHTML = `<i class="fa-solid fa-bolt text-emerald-400"></i>`;
+                title.innerText = "READY TO BUZZ!";
+                title.className = "text-xl font-black tracking-wide uppercase text-emerald-400";
+                desc.innerText = "Hit the big button as fast as you can!";
+
+                if (previousStatus === 'locked') {
+                    playSound('win');
+                }
+                previousStatus = 'ready';
+            } else {
+                // Room is LOCKED (Someone buzzed in)
+                buzzBtn.disabled = true;
+
+                if (data.firstBuzz.uid === currentUser.uid) {
+                    // YOU BUZZED IN FIRST!
+                    card.className = "w-full bg-emerald-950/90 border-2 border-emerald-500 rounded-2xl p-4 text-center transition-all duration-300 glow-green";
+                    icon.innerHTML = `<i class="fa-solid fa-trophy text-amber-400 text-3xl"></i>`;
+                    title.innerText = "YOU BUZZED FIRST!";
+                    title.className = "text-xl font-black tracking-wide uppercase text-emerald-300";
+                    desc.innerText = "Host is reviewing your response!";
+
+                    if (previousStatus !== 'locked') {
+                        playSound('win');
+                    }
+                } else {
+                    // LOCKED OUT BY OTHER PLAYER
+                    const winnerName = data.firstBuzz.name || "Another player";
+                    card.className = "w-full bg-red-950/80 border-2 border-red-500/80 rounded-2xl p-4 text-center transition-all duration-300 glow-red";
+                    icon.innerHTML = `<i class="fa-solid fa-lock text-red-400"></i>`;
+                    title.innerText = "LOCKED OUT!";
+                    title.className = "text-xl font-black tracking-wide uppercase text-red-400";
+                    desc.innerText = `${winnerName} buzzed in faster!`;
+
+                    if (previousStatus !== 'locked') {
+                        playSound('lock');
+                    }
+                }
+                previousStatus = 'locked';
+            }
+        }
+
+        // HANDLE BUZZ PRESS (ATOMIC MILLISECOND LOCKING)
+        window.handleBuzzPress = async function() {
+            if (!currentRoomCode || !currentUser) return;
+
+            // Immediate Local Haptic Feedback
+            if (navigator.vibrate) {
+                navigator.vibrate([80, 30, 80]);
+            }
+            playSound('buzz');
+
+            const now = Date.now();
+
+            try {
+                // Transaction ensures only the exact FIRST write is accepted
+                await runTransaction(db, async (transaction) => {
+                    const roomRef = getRoomRef(currentRoomCode);
+                    const roomSnap = await transaction.get(roomRef);
+
+                    if (!roomSnap.exists()) return;
+
+                    const data = roomSnap.data();
+                    const queue = data.buzzQueue || [];
+
+                    // Register this player's buzz in the queue log
+                    queue.push({
+                        uid: currentUser.uid,
+                        name: playerName,
+                        time: now
+                    });
+
+                    // If no one has locked it yet, set this player as firstBuzz!
+                    if (!data.firstBuzz) {
+                        transaction.update(roomRef, {
+                            firstBuzz: {
+                                uid: currentUser.uid,
+                                name: playerName,
+                                time: now
+                            },
+                            buzzQueue: queue,
+                            status: 'buzzed'
+                        });
+                    } else {
+                        // Just record queue timestamp
+                        transaction.update(roomRef, {
+                            buzzQueue: queue
+                        });
+                    }
+                });
+            } catch (e) {
+                console.error("Buzz transaction failed:", e);
+            }
+        };
+
+        // RENDER HOST VIEW STATE
+        function renderHostView(data) {
+            const winnerBanner = document.getElementById('host-winner-banner');
+            const winnerName = document.getElementById('winner-name');
+            const winnerTime = document.getElementById('winner-time');
+            const queueList = document.getElementById('buzz-queue-list');
+            const leaderboard = document.getElementById('leaderboard-list');
+            const queueCount = document.getElementById('queue-count');
+            const playerCount = document.getElementById('player-count');
+
+            // Render First Winner Banner
+            if (data.firstBuzz) {
+                winnerBanner.classList.remove('hidden');
+                winnerName.innerText = data.firstBuzz.name;
+                const timeDiff = data.firstBuzz.time ? new Date(data.firstBuzz.time).toLocaleTimeString() : '';
+                winnerTime.innerText = `Buzzed at ${timeDiff}`;
+            } else {
+                winnerBanner.classList.add('hidden');
+            }
+
+            // Render Buzz Queue Log
+            const queue = data.buzzQueue || [];
+            queueCount.innerText = queue.length;
+
+            if (queue.length === 0) {
+                queueList.innerHTML = `<div class="text-center text-slate-500 text-xs py-8">Waiting for players to buzz...</div>`;
+            } else {
+                const firstTime = queue[0].time;
+                queueList.innerHTML = queue.map((b, idx) => {
+                    const isFirst = idx === 0;
+                    const diff = isFirst ? '1st' : `+${((b.time - firstTime) / 1000).toFixed(2)}s`;
+                    return `
+                        <div class="flex items-center justify-between p-2.5 rounded-xl ${isFirst ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300' : 'bg-slate-900/60 border border-slate-800 text-slate-300'} font-semibold text-xs">
+                            <div class="flex items-center gap-2">
+                                <span class="w-5 h-5 rounded-full ${isFirst ? 'bg-emerald-500 text-slate-950' : 'bg-slate-700 text-slate-300'} flex items-center justify-center font-bold text-[10px]">
+                                    ${idx + 1}
+                                </span>
+                                <span>${b.name}</span>
+                            </div>
+                            <span class="font-mono text-[11px] opacity-80">${diff}</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // Render Leaderboard / Players List
+            const playersMap = data.players || {};
+            const playersArray = Object.entries(playersMap).map(([uid, p]) => ({ uid, ...p }));
+            playersArray.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+            playerCount.innerText = `${playersArray.length} players`;
+
+            if (playersArray.length === 0) {
+                leaderboard.innerHTML = `<div class="text-center text-slate-500 text-xs py-8">No players connected yet.</div>`;
+            } else {
+                leaderboard.innerHTML = playersArray.map((p, idx) => `
+                    <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-user text-slate-500 text-xs"></i>
+                            <span class="font-bold text-white">${p.name}</span>
+                        </div>
+                        <span class="font-black text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">${p.score || 0} pts</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // HOST ACTIONS
+        window.resetBuzzerState = async function() {
+            if (!currentRoomCode) return;
+            try {
+                await updateDoc(getRoomRef(currentRoomCode), {
+                    firstBuzz: null,
+                    buzzQueue: [],
+                    status: 'ready'
+                });
+            } catch (e) {
+                console.error("Reset failed:", e);
+            }
+        };
+
+        window.adjustScore = async function(points) {
+            if (!currentRoomCode) return;
+            try {
+                const roomDoc = await getDoc(getRoomRef(currentRoomCode));
+                if (!roomDoc.exists()) return;
+
+                const data = roomDoc.data();
+                if (!data.firstBuzz) return;
+
+                const winnerUid = data.firstBuzz.uid;
+                const players = data.players || {};
+
+                if (players[winnerUid]) {
+                    players[winnerUid].score = (players[winnerUid].score || 0) + points;
+                    await updateDoc(getRoomRef(currentRoomCode), { players });
+                }
+            } catch (e) {
+                console.error("Score update failed:", e);
+            }
+        };
+
+        window.clearAllPlayers = async function() {
+            if (!currentRoomCode) return;
+            if (confirm("Reset all player scores and queue?")) {
+                try {
+                    await updateDoc(getRoomRef(currentRoomCode), {
+                        firstBuzz: null,
+                        buzzQueue: [],
+                        players: {}
+                    });
+                } catch (e) {
+                    console.error("Clear failed:", e);
+                }
+            }
+        };
+    </script>
+</body>
+</html>
